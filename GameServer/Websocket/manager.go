@@ -1,9 +1,8 @@
 package ws
 
 import (
-	"Server/Middleware"
-	"Server/Struct"
-	"Server/model"
+	"Server/data_form"
+	"Server/middle_ware"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -16,13 +15,10 @@ import (
 )
 
 func (manager *Manager) Start() {
-	log.Printf("websocket manage start")
 	for {
 		select {
 
 		case client := <-manager.Register :
-			log.Printf("client [%s] connect", client.Username)
-			//log.Printf("register client [%s] to group [%s]", client.Id, client.Group)
 			manager.Lock.Lock()
 
 			if manager.Group[client.Group] == nil {
@@ -34,16 +30,14 @@ func (manager *Manager) Start() {
 				err := client.Socket.WriteMessage(websocket.BinaryMessage,[]byte("房间已满"))
 				if err != nil {	log.Println(err)}
 			}else {
-
-				manager.SendGroup(client.Group,[]byte(client.Username+"已进入房间"))
 				manager.Group[client.Group][client.Username] = client
 				manager.clientCount += 1
+				manager.SendGroup(client.Group,[]byte(client.Username+"已进入房间"))
 			}
 
 			manager.Lock.Unlock()
 
 		case client := <-manager.UnRegister:
-			log.Printf("unregister client [%s] from group [%s]", client.Username, client.Group)
 			manager.Lock.Lock()
 			if _,ok := manager.Group[client.Group];ok {
 				close(client.Message)
@@ -100,11 +94,11 @@ func (manager *Manager) WsClient(ctx *gin.Context) {
 		return
 	}
 
-	var user Middleware.UserClaim
+	var user middle_ware.UserClaim
 	t,_ := ctx.Get("user")
-	if  uc,ok := t.(Middleware.UserClaim); !ok{
+	if  uc,ok := t.(middle_ware.UserClaim); !ok{
 		//resps.Error(ctx,1001,errors.New("Not login yet"))
-		user = Middleware.UserClaim{
+		user = middle_ware.UserClaim{
 			Id:       0,
 			Username: "customer",
 		}
@@ -127,8 +121,6 @@ func (manager *Manager) WsClient(ctx *gin.Context) {
 	go client.Read()
 	go client.Write()
 	time.Sleep(time.Second*15)
-	// 测试单个 client 发送数据
-	//manager.Send(client.Id, client.Group, []byte("Send message ----" + time.Now().Format("2006-01-02 15:04:05")))
 }
 
 // 向指定的 client 发送数据
@@ -191,14 +183,10 @@ func (manager *Manager) ReadyClient(client *Client) {
 }
 
 func (manager *Manager) GameOver(group string,data GameMessageData) {
-	err := model.Judge()
-	if err != nil {
-
-	}
 	manager.GameMsg[group] <- &data
 }
 
-func (manager *Manager) SendPlay(group string,opt Struct.OptData) {
+func (manager *Manager) SendPlay(group string,opt data_form.OptData) {
 	px,_ := strconv.Atoi(opt.Px)
 	py,_ := strconv.Atoi(opt.Py)
 	data := &GameMessageData{
@@ -214,7 +202,6 @@ func (manager *Manager) SendPlay(group string,opt Struct.OptData) {
 func (manager *Manager) GameStart(group string) {
 	manager.SendGroup(group,[]byte("Game Start!"))
 	time.Sleep(time.Millisecond*100)
-	model.BoardStart(group)
 	var users[2] string
 	var clients[2] *Client
 	p := 0
@@ -226,20 +213,20 @@ func (manager *Manager) GameStart(group string) {
 	}
 	fmt.Println(users)
 	fmt.Println(clients[0].Username)
-	//conn := manager.GameMsg[group]
 	manager.GameMsg[group] = make(chan *GameMessageData,1024)
+	defer close(manager.GameMsg[group])
 
+	//决定先手，并将消息发送给客户端
 	rand.Seed(time.Now().UnixNano())
 	p = rand.Intn(2)
 	p = 0
 	var data1,data2 interface{}
-	data1 = Struct.OptData{
+	data1 = data_form.OptData{
 		Type:     strconv.Itoa(1000+1),
 		Message:  users[p]+" first hand.",
 	}
-	fmt.Println(data1)
 	clients[p].Data <- &data1
-	data2 = Struct.OptData{
+	data2 = data_form.OptData{
 		Type:     strconv.Itoa(1000),
 		Message:  users[p^1]+" second hand.",
 	}
@@ -248,9 +235,8 @@ func (manager *Manager) GameStart(group string) {
 	for {
 		select {
 		case data := <- manager.GameMsg[group]:
-			fmt.Println(data)
 			if data.Type == "over"{
-				optData := &Struct.OptData{
+				optData := &data_form.OptData{
 					Type: data.Type,
 					User: data.User,
 					Px:   strconv.Itoa(data.Px),
@@ -261,11 +247,11 @@ func (manager *Manager) GameStart(group string) {
 				time.Sleep(time.Millisecond*100)
 				break
 			}else if data.User != users[p] {
+				// 不是当前要下棋的选手
 				continue
 			} else {
-				model.Play(group, data.User, data.Px, data.Py)
 				p = (p + 1) % 2
-				opt := Struct.OptData{
+				opt := data_form.OptData{
 					Type: "play",
 					User: data.User,
 					Px:   strconv.Itoa(data.Px),
@@ -300,43 +286,13 @@ func (manager *Manager)	SendService() {
 
 }
 
-
-//当前组个数
-func (manager *Manager) LenGroup() uint {
-	return manager.groupCount
-}
-
-//当前连接个数
-func (manager *Manager) LenClient() uint {
-	return manager.clientCount
-}
-
 // 获取 wsManager 管理器信息
 func (manager *Manager) Info() map[string]interface{} {
 	managerInfo := make(map[string]interface{})
-	managerInfo["groupLen"] = manager.LenGroup()
-	managerInfo["clientLen"] = manager.LenClient()
 	managerInfo["chanRegisterLen"] = len(manager.Register)
 	managerInfo["chanUnregisterLen"] = len(manager.UnRegister)
 	managerInfo["chanMessageLen"] = len(manager.Message)
 	managerInfo["chanGroupMessageLen"] = len(manager.GroupMessage)
 	managerInfo["chanBroadCastMessageLen"] = len(manager.BroadCastMessage)
 	return managerInfo
-}
-
-// 测试组广播
-func TestSendGroup() {
-	for {
-		time.Sleep(time.Second * 10)
-		WebsocketManager.SendGroup("leffss", []byte("SendGroup message ----" + time.Now().Format("2006-01-02 15:04:05")))
-	}
-}
-
-// 测试广播
-func TestSendAll() {
-	for {
-		time.Sleep(time.Second * 15)
-		WebsocketManager.SendAll([]byte("SendAll message ----" + time.Now().Format("2006-01-02 15:04:05")),"test")
-		fmt.Println(WebsocketManager.Info())
-	}
 }

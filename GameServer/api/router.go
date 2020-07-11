@@ -1,8 +1,8 @@
 package api
 
 import (
-	"Server/Middleware"
-	ws "Server/Websocket"
+	"Server/middle_ware"
+	ws "Server/websocket"
 	"github.com/gin-gonic/gin"
 )
 
@@ -11,7 +11,7 @@ func SetRouter(r *gin.Engine){
 	r.POST("/register",Register)
 	wsGroup := r.Group("/ws")
 	{
-		wsGroup.GET("/:channel",Middleware.LoginStatus, ws.WebsocketManager.WsClient)//
+		wsGroup.GET("/:channel", middle_ware.LoginStatus, ws.WebsocketManager.WsClient) //
 	}
 
 }

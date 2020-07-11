@@ -2,15 +2,13 @@ package main
 
 import (
 	"client/Process"
-	"fmt"
-	"time"
 )
 
 func main() {
+	//登录
 	Process.Sigin()
+	//下棋
 	Process.Play()
-	fmt.Println("十秒后自动关闭客户端")
-	time.Sleep(time.Second*10)
 }
 
 

@@ -13,7 +13,6 @@ type User struct {
 
 func Login(username ,password string)uint{
 	var u User
-	//DB.Where("username = ?", f.Username).Where("password = ?", f.Password).First(&u)
 	DB.Where(User{
 		Username: username,
 		Password: password,

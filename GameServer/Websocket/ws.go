@@ -1,7 +1,7 @@
 package ws
 
 import (
-	"Server/Struct"
+	"Server/data_form"
 	"bytes"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -73,7 +73,6 @@ type GameMessageData struct {
 func (c *Client) Read() {
 	defer func() {
 		WebsocketManager.UnRegister <- c
-		log.Printf("client [%s] disconnect", c.Id)
 		if err := c.Socket.Close();err != nil {
 			log.Printf("client [%s] disconnect err: %s", c.Username, err)
 		}
@@ -82,16 +81,16 @@ func (c *Client) Read() {
 	for {
 		var data interface{}
 		err := c.Socket.ReadJSON(&data)
-		if err != nil 	{ fmt.Println(err);break }
+		if err != nil 	{ log.Println(err);break }
 		if dataMap,ok := data.(map[string]interface{}); ok {
-			typ := Struct.TypeString(dataMap["type"])
+			typ := data_form.TypeString(dataMap["type"])
 			switch typ {
 			case "ready":WebsocketManager.ReadyClient(c)
 			case "over":
-				px,_ := strconv.Atoi(Struct.TypeString(dataMap["px"]))
-				py,_ := strconv.Atoi(Struct.TypeString(dataMap["py"]))
+				px,_ := strconv.Atoi(data_form.TypeString(dataMap["px"]))
+				py,_ := strconv.Atoi(data_form.TypeString(dataMap["py"]))
 				data := GameMessageData{
-					User:  Struct.TypeString(dataMap["user"]),
+					User:  data_form.TypeString(dataMap["user"]),
 					group: c.Group,
 					Type:  typ,
 					Px:    px,
@@ -102,11 +101,11 @@ func (c *Client) Read() {
 
 			case "play":
 
-				WebsocketManager.SendPlay(c.Group,Struct.OptData{
+				WebsocketManager.SendPlay(c.Group, data_form.OptData{
 					Type: typ,
-					User: Struct.TypeString(dataMap["user"]),
-					Px:   Struct.TypeString(dataMap["px"]),
-					Py:   Struct.TypeString(dataMap["py"]),
+					User: data_form.TypeString(dataMap["user"]),
+					Px:   data_form.TypeString(dataMap["px"]),
+					Py:   data_form.TypeString(dataMap["py"]),
 				})
 			}
 
@@ -118,7 +117,6 @@ func (c *Client) Read() {
 func (c *Client) Write() {
 	defer func() {
 		WebsocketManager.UnRegister <- c
-		log.Printf("client [%s] disconnect", c.Username)
 		if err := c.Socket.Close();err != nil {
 			log.Printf("client [%s] disconnect err: %s", c.Username, err)
 		}
@@ -127,8 +125,6 @@ func (c *Client) Write() {
 	for {
 		select {
 		case data := <- c.Data :
-
-			log.Println("client write message:", c.Username, data)
 			err := c.Socket.WriteJSON(data)
 			if err != nil {
 				log.Printf("client [%s] writemessage err: %s", c.Username, err)

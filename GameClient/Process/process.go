@@ -17,17 +17,17 @@ import (
 )
 
 const N = 20
-var addr = flag.String("addr", "127.0.0.1:8080", "http service address")
+var addr = flag.String("addr", "47.93.114.84:8080", "http service address")
 var token,user string
 var a [N+1][N+1]int
 var lock sync.Mutex
 
 func Sigin() {
 	var u Struct.LoginForm
-	var address string
-	fmt.Println("请输入服务器地址")
-	fmt.Scanln(&address)
-	addr = flag.String("addr",address,"http service address")
+	address := "47.93.114.84:8080"
+//	fmt.Println("请输入服务器地址")
+//	fmt.Scanln(&address)
+//	addr = flag.String("addr",address,"http service address")
 	for  {
 		fmt.Println("请输入用户名密码")
 		fmt.Scanln(&u.Username,&u.Password)
@@ -37,7 +37,7 @@ func Sigin() {
 			continue
 		}
 		reader := bytes.NewReader(data)
-		url := address+"/login"
+		url := "http://"+address+"/login"
 		req,err := http.NewRequest("POST",url,reader)
 		if err != nil {
 			fmt.Println("登陆时发生意外错误1",err)
@@ -182,6 +182,9 @@ func Play() {
 		}
 		status = (status + 1) % 2
 	}
+	PrintBoard()
+	fmt.Println("三十秒后自动关闭客户端")
+	time.Sleep(time.Second*30)
 }
 
 func Read(conn *websocket.Conn) {
@@ -200,17 +203,7 @@ func Read(conn *websocket.Conn) {
 	}
 }
 
-func timeWriter(conn *websocket.Conn) {
-	for {
-		time.Sleep(time.Second * 2)
-		conn.WriteMessage(websocket.TextMessage, []byte(time.Now().Format("2006-01-02 15:04:05")))
-	}
-}
-
 func PrintBoard() {
-	//cmd := exec.Command("cmd", "/c", "cls")
-	//cmd.Stdout = os.Stdout
-	//cmd.Run()
 	var ch string
 	for i := 0; i <= N; i++ {
 		fmt.Printf("%2d",i)
@@ -246,7 +239,7 @@ func Judge(x int,y int) bool {
 		var xx,yy,i int
 		xx = int(x)
 		yy = int(y)
-		i = 0
+		i = 0 ; l[k%2] = 0
 		for {
 			i++
 			xx += dx[k]
